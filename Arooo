@@ -1,0 +1,209 @@
+-- ==========================================
+-- Auto Farm & Protection Script (Roblox)
+-- ==========================================
+
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "Egg Steal & Protection Hub",
+   LoadingTitle = "Loading Script...",
+   LoadingSubtitle = "by Assistant",
+   ConfigurationSaving = {
+      Enabled = false
+   }
+})
+
+-- Variables & Toggles
+local LocalPlayer = game.Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+
+local HomeCFrame = HumanoidRootPart.CFrame -- บันทึกจุดเกิด/สวนของตนเอง
+local FlyingToBest = false
+local FlyingToBiggest = false
+local AutoPickDrop = false
+local LowGFX = false
+
+-- อัปเดตตำแหน่งสวน/บ้านของคุณ (กดใช้เมื่อยืนอยู่ในสวนของตัวเอง)
+LocalPlayer.CharacterAdded:Connect(function(char)
+    Character = char
+    HumanoidRootPart = char:WaitForChild("HumanoidRootPart")
+end)
+
+-- Function 1: ย้ายตำแหน่ง/บินไปหาไข่
+local function FlyToEgg(eggObject)
+    if eggObject and eggObject:IsA("BasePart") then
+        HumanoidRootPart.CFrame = eggObject.CFrame + Vector3.new(0, 3, 0)
+    elseif eggObject and eggObject:FindFirstChild("HumanoidRootPart") then
+        HumanoidRootPart.CFrame = eggObject.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+    end
+end
+
+-- Function 2: วาร์ปกลับสวนของตนเอง
+local function ReturnToHome()
+    if HomeCFrame then
+        HumanoidRootPart.CFrame = HomeCFrame
+    end
+end
+
+-- ==========================================
+-- UI TABS & BUTTONS
+-- ==========================================
+
+local MainTab = Window:CreateTab("ฟังก์ชันขโมยไข่", 4483362458)
+local UtilityTab = Window:CreateTab("ตั้งค่าระบบ/ลดแลค", 4483362458)
+
+-- 1.1 ขโมยไข่ดีที่สุด
+MainTab:CreateToggle({
+   Name = "ขโมยไข่ดีที่สุด (Best Egg)",
+   CurrentValue = false,
+   Callback = function(Value)
+      FlyingToBest = Value
+      if FlyingToBest then
+         -- บันทึกจุดสวนก่อนไป
+         HomeCFrame = HumanoidRootPart.CFrame 
+         task.spawn(function()
+            while FlyingToBest do
+               -- ค้นหาไข่ที่มีค่าสูงสุด/ดีที่สุดในแมพ (ปรับ Name/Tag ให้ตรงกับแมพที่เล่น)
+               local bestEgg = nil
+               for _, v in pairs(workspace:GetChildren()) do
+                  if v.Name:lower():find("egg") or v:FindFirstChild("Egg") then
+                     bestEgg = v
+                  end
+               end
+               
+               if bestEgg then
+                  FlyToEgg(bestEgg)
+                  -- ตัวอย่างการกดเก็บออโต้ (Interacts / ProximityPrompt)
+                  for _, prompt in pairs(workspace:GetDescendants()) do
+                     if prompt:IsA("ProximityPrompt") and (prompt.Parent.Position - HumanoidRootPart.Position).Magnitude < 10 then
+                        fireproximityprompt(prompt)
+                     end
+                  end
+               end
+               task.wait(0.5)
+            end
+         end)
+      else
+         -- เมื่อกดปิด บินกลับมาสวนของตนเอง
+         ReturnToHome()
+      end
+   end,
+})
+
+-- 1.2 ขโมยไข่ใหญ่ที่สุดในเซิฟ
+MainTab:CreateToggle({
+   Name = "ขโมยไข่ใหญ่ที่สุดในเซิฟ (Biggest Egg)",
+   CurrentValue = false,
+   Callback = function(Value)
+      FlyingToBiggest = Value
+      if FlyingToBiggest then
+         HomeCFrame = HumanoidRootPart.CFrame
+         task.spawn(function()
+            while FlyingToBiggest do
+               local biggestEgg = nil
+               local maxScale = 0
+               
+               -- ค้นหาไข่ที่มีขนาดใหญ่ที่สุด
+               for _, v in pairs(workspace:GetChildren()) do
+                  if (v.Name:lower():find("egg") or v:FindFirstChild("Egg")) and v:IsA("BasePart") then
+                     local size = v.Size.X * v.Size.Y * v.Size.Z
+                     if size > maxScale then
+                        maxScale = size
+                        biggestEgg = v
+                     end
+                  end
+               end
+               
+               if biggestEgg then
+                  FlyToEgg(biggestEgg)
+                  -- กดเก็บออโต้
+                  for _, prompt in pairs(workspace:GetDescendants()) do
+                     if prompt:IsA("ProximityPrompt") and (prompt.Parent.Position - HumanoidRootPart.Position).Magnitude < 10 then
+                        fireproximityprompt(prompt)
+                     end
+                  end
+               end
+               task.wait(0.5)
+            end
+         end)
+      else
+         -- เมื่อกดปิด บินกลับมาสวนของตนเอง
+         ReturnToHome()
+      end
+   end,
+})
+
+-- 1.3 ระบบหยิบแล้ววาง (เมื่อบอสเข้าใกล้)
+MainTab:CreateToggle({
+   Name = "หยิบแล้ววาง (กันบอสตี)",
+   CurrentValue = false,
+   Callback = function(Value)
+      AutoPickDrop = Value
+      if AutoPickDrop then
+         task.spawn(function()
+            while AutoPickDrop do
+               -- เช็คบอสในระยะ 15 หน่วย
+               for _, mob in pairs(workspace:GetChildren()) do
+                  if mob:FindFirstChild("Humanoid") and mob ~= Character then
+                     if mob:FindFirstChild("HumanoidRootPart") then
+                        local distance = (mob.HumanoidRootPart.Position - HumanoidRootPart.Position).Magnitude
+                        if distance < 15 then 
+                           -- สลับวางและถือของในมือ
+                           local tool = Character:FindFirstChildOfClass("Tool")
+                           if tool then
+                              tool.Parent = LocalPlayer.Backpack
+                              task.wait(0.1)
+                              LocalPlayer.Backpack:FindFirstChildOfClass("Tool").Parent = Character
+                           end
+                        end
+                     end
+                  end
+               end
+               task.wait(0.2)
+            end
+         end)
+      end
+   end,
+})
+
+-- 2.1 ลดอาการค้าง / กระตุก (FPS Booster)
+UtilityTab:CreateToggle({
+   Name = "ลดค้าง / ลดกระตุก (Boost FPS)",
+   CurrentValue = false,
+   Callback = function(Value)
+      LowGFX = Value
+      if LowGFX then
+         for _, v in pairs(game:GetDescendants()) do
+            if v:IsA("Part") or v:IsA("UnionOperation") or v:IsA("MeshPart") then
+               v.Material = Enum.Material.SmoothPlastic
+               v.Reflectance = 0
+            elseif v:IsA("Decal") or v:IsA("Texture") then
+               v.Transparent = 1
+            elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
+               v.Enabled = false
+            end
+         end
+         game:GetService("Lighting").GlobalShadows = false
+      else
+         Rayfield:Notify({
+            Title = "แจ้งเตือน",
+            Content = "หากต้องการคืนค่ากราฟิกเดิม แนะนำให้เข้าเกมใหม่ครับ",
+            Duration = 3,
+         })
+      end
+   end,
+})
+
+-- ปุ่มรีเซ็ตจุดเกิดสวนของตัวเอง
+UtilityTab:CreateButton({
+   Name = "ตั้งค่าจุดสวนใหม่ (Set Home Point)",
+   Callback = function()
+      HomeCFrame = HumanoidRootPart.CFrame
+      Rayfield:Notify({
+         Title = "สำเร็จ",
+         Content = "บันทึกจุดสวนปัจจุบันเรียบร้อยแล้ว!",
+         Duration = 3,
+      })
+   end,
+})
